@@ -12,13 +12,18 @@ test ! -e deployment-started
 test "$(dpkg-query -W -f='${Version}' openhd)" = 2.6.4-202505221612-d9ed491
 test "$(dpkg-query -W -f='${Version}' libcamera-openhd)" = 1.2.7
 test -f /boot/openhd/air.txt
-for path in /Config /Video /config /conf /usr/local/share/OpenHD /usr/sbin/policy-rc.d \
+for path in /Config /Video /config /conf /usr/sbin/policy-rc.d \
   /etc/systemd/system/openhd-sys-utils.service /opt/space.img.air-baseline \
   /boot/settings.json /boot/openhd/settings.json /boot/openhd/reset.txt \
   /boot/openhd/ground.txt /boot/openhd/record.txt \
   /boot/openhd/scripts/custom_unmanaged_camera.sh; do
   test ! -e "$path" && test ! -L "$path"
 done
+# A completed rollback deliberately preserves this firstboot safety config.
+if [[ -e /usr/local/share/OpenHD ]]; then
+  perl -MJSON::PP -e 'local $/; my $v=decode_json(<>); die "Unsafe retained SysUtils config" unless exists($v->{firstboot}) && JSON::PP::is_bool($v->{firstboot}) && !$v->{firstboot};' \
+    /usr/local/share/OpenHD/SysUtils/config.json
+fi
 (cd backup; sha256sum -c SHA256SUMS)
 test -s backup/openhd-sys-utils_0.4-12-01-2024--13-19-56_armhf.deb
 tr -d '\r' < air-bundle.SHA256SUMS | sha256sum -c -
