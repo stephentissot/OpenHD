@@ -371,3 +371,24 @@ de confirmation n'a été créé et le timer n'a pas été désarmé.** Vers 12 
 le hotspot n'est plus accessible ; l'issue de la restauration est inconnue.
 Ne pas considérer ce Ground comme validé ni lancer une autre transaction avant
 lecture des journaux, versions, états du timer et des services après récupération.
+
+### Restauration Ground et corrélation des journaux confirmées
+
+La reconnexion suivante confirme `GROUND_ROLLBACK_COMPLETE_264_RESTORED`, les
+deux anciens paquets, QOpenHD et `h264_decode` actifs, le timer désactivé et
+`dpkg --audit` sans anomalie. La restauration matérielle est donc validée.
+
+La chronologie monotone permet de distinguer la perte réseau d'un crash : le
+cœur 2.7 démarre à 2704 s, annonce son démarrage réussi à 2721 s et son hotspot
+à 2722 s. Son prochain arrêt apparaît à 3609 s, soit environ quinze minutes
+plus tard, lors de la restauration automatique faute de confirmation. Aucun
+crash/redémarrage du cœur n'est observé entre ces événements. La seconde
+coupure SSH ne constitue donc pas une preuve d'instabilité du nouveau cœur :
+elle correspond au rollback attendu. Le délai de validation a été dépassé.
+
+SysUtils avait annoncé READY ; son lecteur vidéo avait terminé son
+initialisation et signalé un changement du port de sortie du décodeur ainsi que
+des événements. Cela suggère une activité du pipeline, mais ne valide ni une
+image visible ni la qualité du flux. Le message `Cannot set buffer size` reste
+à examiner avec les statistiques vidéo et l'écran lors d'un prochain essai.
+Le Ground est actuellement revenu en 2.6.4 ; aucun deuxième essai n'a été lancé.
