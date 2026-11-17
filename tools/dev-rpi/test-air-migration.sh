@@ -20,6 +20,10 @@ perl -MJSON::PP -e '
   die "Camera changed" unless $c->{h26x_bitrate_kbits} == 11000 && $c->{rpi_libcamera_ev_value} == 5 && $c->{nxp_enable_aud};
   my $r = load("$base/interface/wifibroadcast_settings.json");
   die "Radio changed" unless $r->{wb_frequency} == 5745 && $r->{wb_tx_power_idx_per_card}[0] == 10 && $r->{wb_tx_power_mw_per_card}[0] == 25;
+  for my $key (qw(wb_tx_power_mw_per_card wb_tx_power_mw_armed_per_card wb_tx_power_idx_per_card wb_tx_power_idx_armed_per_card)) {
+    die "Expected MAX_WIFI_CARDS slots: $key" unless @{$r->{$key}} == 4;
+  }
+  die "Last parameter slot changed" unless $r->{wb_tx_power_idx_per_card}[3] == 10;
 ' "$base"
 before=$(find "$base" -type f -exec sha256sum {} + | sort)
 perl "$HERE/air-migrate-settings.pl" "$root"

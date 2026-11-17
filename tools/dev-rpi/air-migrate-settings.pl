@@ -33,8 +33,8 @@ migrate('telemetry/air_settings.json', {
     openhd_uart_priority_fc => 1,
 });
 migrate('video/RPIF_V3_IMX708_0.json', {nxp_enable_aud => JSON::PP::true});
-# One USB WB adapter on this audited Air. Preserve its legacy power overrides
-# rather than allowing pre-filled per-card defaults to mask the old settings.
+# The core exposes MAX_WIFI_CARDS (4) parameter slots even with one adapter.
+# Preserve legacy power in all slots instead of overriding its four-slot shape.
 my $radio_path = "$root/usr/local/share/openhd/interface/wifibroadcast_settings.json";
 open my $radio_in, '<', $radio_path or die $!;
 my $radio = do { local $/; $json->decode(<$radio_in>) };
@@ -48,7 +48,7 @@ my %vectors = (
 my %defaults;
 for my $key (keys %vectors) {
     die "Missing old power setting $vectors{$key}" unless exists $radio->{$vectors{$key}};
-    $defaults{$key} = [$radio->{$vectors{$key}}];
+    $defaults{$key} = [($radio->{$vectors{$key}}) x 4];
 }
 migrate('interface/wifibroadcast_settings.json', \%defaults);
 print "===SETTINGS_MIGRATED_WITH_EXISTING_VALUES_PRESERVED===\n";

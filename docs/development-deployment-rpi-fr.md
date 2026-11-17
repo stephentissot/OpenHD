@@ -245,3 +245,26 @@ Prochaine preuve requise : relire les journaux de transaction et de restauration
 versions et états des paquets/services, socket compagnon, hotspot, IMX708 et UART.
 Ne désarmer le timer qu'après validation, pas sur la seule présence des nouveaux
 paquets. Aucun test de paire vidéo ni développement OpenDroneID n'est validé ici.
+
+### Récupération confirmée après cette tentative
+
+Le hotspot est réapparu et SSH a été rétabli vers 11 h 33 (heure PC).
+Le journal porte `ROLLBACK_COMPLETE_264_RESTORED` : paquets OpenHD
+`2.6.4-202505221612-d9ed491` et SysUtils `0.4-12-01-2024--13-19-56`
+restaurés. `dpkg --audit` ne rapporte rien ; OpenHD, SSH et NetworkManager sont
+actifs. Le timer de récupération est désactivé après sa réussite. La radio USB
+est à nouveau monitor sur le canal 1 ; ce constat ne valide pas le lien vidéo.
+
+La transaction d'installation avait bien terminé, puis le cœur 2.7 redémarrait
+en boucle : `SIGSEGV` et exception `vector::_M_range_check` (index 1, taille 1).
+Une erreur locale de migration est identifiée : les quatre vecteurs de puissance
+étaient créés avec une seule entrée. Le cœur expose systématiquement
+`MAX_WIFI_CARDS=4` paramètres, indépendamment du nombre de radios connectées.
+Le script fournit désormais quatre entrées conservant les valeurs historiques ;
+le test vérifie explicitement cette taille et le dernier emplacement. Cette
+correction ne démontre pas à elle seule la résolution des `SIGSEGV`.
+
+Le journal NetworkManager montre aussi la suppression du profil hotspot pendant
+son activation (`connection-removed`). Les redémarrages et destructions d'objets
+hotspot peuvent expliquer cette disparition ; l'ordre causal complet reste à
+vérifier. Aucune seconde installation n'a été lancée au cours de ce diagnostic.
