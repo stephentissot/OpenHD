@@ -11,6 +11,21 @@ de rollback achevées avant de refaire le précontrôle. Aucun service actif n'e
 arrêté par cette préparation. Le déploiement utilise ensuite le bundle baseline
 historique, jamais le nouveau binaire expérimental OpenDroneID.
 
+Second déploiement Ground le 17 novembre 2026 vers 17 h 44 (PC) : mêmes DEB
+baseline vérifiés SHA256, installateur détaché terminé avec statut zéro.
+Reconnexion SSH avant l'échéance : cœur 2.7.1-evo et SysUtils actifs,
+`NRestarts=0`, QOpenHD 2.6.4 inchangé et actif, socket compagnon présent,
+`dpkg --audit` sans anomalie, hotspot sur wlan1. Le décodeur historique est
+inactif/désactivé ; le pipeline lancé par SysUtils est actif.
+
+Les statistiques Ground montrent effectivement de la réception : environ
+14,1 Mbit/s radio et 11,15 Mbit/s vidéo entrante, 1 404 paquets/s, pertes
+instantanées 0–1 %, compteurs de blocs FEC reçus/récupérés en progression.
+Cela valide une réception déclarée par le cœur, pas une image affichée inspectée
+à distance. La confirmation est effectuée sous le verrou de déploiement après
+ces contrôles, puis le rollback est désactivé. Aucun redémarrage complet testé,
+aucune modification Air ni aucun déploiement OpenDroneID à cette étape.
+
 ## État de préparation — 17 novembre 2026
 
 Objectif : compiler le fork `2.7-evo` sans modification du code fonctionnel,
