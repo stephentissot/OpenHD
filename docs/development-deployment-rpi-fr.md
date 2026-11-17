@@ -349,3 +349,25 @@ La restauration rétablit aussi ce service et son script. Voir l'
 Les tests de migration Ground et de sauvegarde/restauration des réglages Qt et
 du décodeur réussissent localement. Les sources fonctionnelles restent intactes.
 Cette préparation seule ne constitue pas encore une installation Ground validée.
+
+### Première transaction Ground : installation observée, confirmation non faite
+
+La sauvegarde finale privée a été exportée et vérifiée sur le PC : SHA256
+`7df9f7cdaabfc550ca54b78b4b904b5de67047d22255c97422ab1f9e746180f9`.
+Le lancement vers 12 h 37 (heure PC) utilise une unité détachée bornée à dix
+minutes (`TimeoutStartSec=10min`, `KillMode=control-group`), afin de libérer le
+verrou même si l'installateur se bloque avant l'échéance du rollback à quinze
+minutes. L'archive inclut les états/script du décodeur historique en supplément.
+
+Une reconnexion vers 12 h 50 a effectivement montré les nouveaux paquets, le
+marqueur `GROUND_27_INSTALLED_ROLLBACK_STILL_ARMED` et le cœur affichant
+2.7.1-evo / Ground / caméra N/A. Cœur, compagnon et QOpenHD actifs avec
+`NRestarts=0` ; unité d'installation terminée avec statut zéro. Le cœur annonce
+un démarrage réussi et le hotspot sur wlan1. Un avertissement de séquence
+wifibroadcast apparaît dans le journal ; aucune réception vidéo n'a été mesurée.
+
+SSH a de nouveau été réinitialisé avant les contrôles finaux. **Aucun marqueur
+de confirmation n'a été créé et le timer n'a pas été désarmé.** Vers 12 h 53,
+le hotspot n'est plus accessible ; l'issue de la restauration est inconnue.
+Ne pas considérer ce Ground comme validé ni lancer une autre transaction avant
+lecture des journaux, versions, états du timer et des services après récupération.
