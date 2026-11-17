@@ -31,8 +31,8 @@ install -m 644 /opt/openhd-dev/downloads/openhd-release.list "$ROOT/etc/apt/sour
 chroot "$ROOT" /usr/bin/env DEBIAN_FRONTEND=noninteractive dpkg --configure -a
 chroot "$ROOT" apt-get update
 chroot "$ROOT" apt-cache policy libcamera-openhd gst-openhd-plugins openhd-sys-utils
-chroot "$ROOT" /usr/bin/env DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+chroot "$ROOT" /usr/bin/env DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-downgrades --no-install-recommends \
   build-essential cmake ninja-build pkg-config git ca-certificates \
   libpoco-dev libusb-1.0-0-dev libpcap-dev libsodium-dev \
   libnl-3-dev libnl-genl-3-dev libnl-route-3-dev libsdl2-dev \
-  libgstreamer-plugins-base1.0-dev libv4l-dev libcamera-openhd ruby-dev
+  libgstreamer-plugins-base1.0-dev libv4l-dev libcamera-openhd=1.2.7 ruby-dev

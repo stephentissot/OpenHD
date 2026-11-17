@@ -12,12 +12,13 @@ puis valider Air et Ground avant l'intégration OpenDroneID.
 - WSL2 opérationnel après redémarrage ; Ubuntu 22.04.5 installé.
 - Environnement de build sur disque Linux sous `/opt/openhd-dev`, hors OneDrive.
 - Chroot Raspberry Pi OS Lite Bullseye du 03/05/2023, ARMhf exécuté par QEMU ;
-   GCC 10.2.1, CMake 3.18.4, Ninja, libcamera-openhd 1.2.10 installés.
+   GCC 10.2.1, CMake 3.18.4, Ninja, libcamera-openhd **1.2.7** installés.
 - Build Release **réussi** du cœur à `1e84d4b8` ; `git diff c75c37e6 -- OpenHD`
    vide : aucune modification du code fonctionnel.
 - Build Release **réussi** du compagnon OpenHD-SysUtils, révision
    `e89ce3d8541189c145c949cd04dc5b5f1d62cc83` du dépôt officiel.
-- Deux paquets ARMhf produits et exportés dans `artifacts/rpi-baseline/`
+- Deux paquets ARMhf reconstruits intégralement avec libcamera 1.2.7 et exportés
+   dans `artifacts/rpi-baseline-camera127/`
    (répertoire ignoré par Git), avec manifestes et SHA-256 vérifiés après copie.
 - Aucun déploiement 2.7 réalisé ; aucun service du Pi modifié.
 
@@ -29,8 +30,14 @@ réussi n'est pas une validation matérielle.
 
 | Paquet | Version | SHA-256 |
 | --- | --- | --- |
-| openhd | 2.7.0-1794903066-1e84d4b8 | `6fbcdd2eb417ab8a34f2c2b4f0aca72afc98bdaf7ee93ca48029d0ce83469940` |
-| openhd-sys-utils | 1.0.3.20261117090242 | `7e3a5530d7901f3ad9fc553194462cd41d62e06ed2f76b20b017b84e419bc5c1` |
+| openhd | 2.7.0-1794903066-1e84d4b8 | `710989e5403c8c091116ab8443d6d9c32fc80c95c3def224a4e3247cd5fcbf09` |
+| openhd-sys-utils | 1.0.3.20261117093806 | `9705b61999b59eb0df450f0b215ccca9bcf68168cd9061b74190fe688be1b56a` |
+
+Ces empreintes remplacent le premier jeu construit avec libcamera 1.2.10,
+conservé séparément dans `artifacts/rpi-baseline/`. Ne pas déployer ce premier
+jeu. Après changement de version d'une bibliothèque système, reconstruire avec
+`OPENHD_CLEAN_BUILD=1` : les dates anciennes des fichiers de paquets peuvent
+empêcher Ninja de détecter seul le changement.
 
 Les deux exécutables sont ELF 32 bits ARM EABI5, chargeur ARMhf ; aucune
 bibliothèque manquante dans le chroot selon `ldd`. Ce contrôle reste à répéter
@@ -132,6 +139,25 @@ Avant le premier démarrage de SysUtils, examiner sa configuration et la logique
 de premier boot : synchronisation des paramètres, configuration caméra,
 montages et redimensionnement éventuel FAT32. Ne pas simplement démarrer ce
 service sur l'image 2.6.4 sans préparation et sauvegarde des réglages de boot.
+
+### Audit SSH Air complémentaire
+
+- Authentification réussie ; `sudo -n true` réussit sans mot de passe.
+- Ancien paquet SysUtils : `0.4-12-01-2024--13-19-56`, unité activée
+   `openhd_sys_utils.service` (underscores). Le nouveau paquet utilise
+   `openhd-sys-utils.service` (tirets) : éviter deux orchestrateurs simultanés.
+- `/run/openhd` absent : aucun socket du protocole 2.7 disponible au relevé.
+- libcamera-openhd **1.2.7**, gst-openhd-plugins `2.3-evo-03031839`, libc6
+   `2.31-13+rpt2+rpi1+deb11u5`, libstdc++6 `10.2.1-6+rpi1`.
+- QOpenHD `2.6.4-05-22-2025--17-28-18-3d325016`, service désactivé sur Air.
+- Racine : 712 Mio libres ; boot : 219 Mio libres. Aucun paquet installé.
+- Attention à la casse : la configuration **nouveau SysUtils** est
+   `/usr/local/share/OpenHD/SysUtils/config.json`, distincte du chemin historique
+   `/usr/local/share/openhd` du cœur. Le chemin en minuscules testé au premier
+   inventaire ne démontre pas à lui seul l'absence de configuration en majuscules.
+- Les nouveaux imports de rôle/caméra utilisent `/Config`, non les seuls
+   marqueurs historiques `/boot/openhd`. Préparer explicitement la migration
+   à partir des réglages réellement présents, sans créer un faux adaptateur.
 
 Préserver noyau et pilotes `rtl88x2eu_ohd` tant qu'aucune incompatibilité démontrée
 n'impose une migration d'image. Aucune mise à jour générale de l'OS.

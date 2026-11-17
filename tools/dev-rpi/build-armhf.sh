@@ -15,12 +15,16 @@ done
 mountpoint -q "$ROOT/opt/OpenHD" || mount --bind /opt/openhd-dev/source "$ROOT/opt/OpenHD"
 mountpoint -q "$ROOT/opt/OpenHD-SysUtils" || mount --bind /opt/openhd-dev/sysutils-source "$ROOT/opt/OpenHD-SysUtils"
 mkdir -p /opt/openhd-dev/logs
+BUILD_EXTRA=()
+if [[ ${OPENHD_CLEAN_BUILD:-0} == 1 ]]; then
+  BUILD_EXTRA+=(--clean-first)
+fi
 set -o pipefail
 chroot "$ROOT" cmake -S /opt/OpenHD/OpenHD -B /build/openhd -G Ninja \
   -DCMAKE_BUILD_TYPE=Release 2>&1 | tee /opt/openhd-dev/logs/openhd-configure.log
-chroot "$ROOT" cmake --build /build/openhd --parallel 4 \
+chroot "$ROOT" cmake --build /build/openhd --parallel 4 "${BUILD_EXTRA[@]}" \
   2>&1 | tee /opt/openhd-dev/logs/openhd-build.log
 chroot "$ROOT" cmake -S /opt/OpenHD-SysUtils -B /build/sysutils -G Ninja \
   -DCMAKE_BUILD_TYPE=Release 2>&1 | tee /opt/openhd-dev/logs/sysutils-configure.log
-chroot "$ROOT" cmake --build /build/sysutils --parallel 4 \
+chroot "$ROOT" cmake --build /build/sysutils --parallel 4 "${BUILD_EXTRA[@]}" \
   2>&1 | tee /opt/openhd-dev/logs/sysutils-build.log
