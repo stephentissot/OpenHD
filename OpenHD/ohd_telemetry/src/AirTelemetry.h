@@ -45,6 +45,10 @@
 #include "openhd_link.hpp"
 #include "openhd_spdlog.h"
 
+#ifdef OPENHD_ENABLE_ODID
+#include "opendroneid/Integration.h"
+#endif
+
 /**
  * OpenHD Air telemetry. Assumes a Ground instance running on the ground pi.
  */
@@ -109,6 +113,12 @@ class AirTelemetry : public MavlinkSystem {
   void setup_openhd_uart_telemetry();
 
  private:
+    // Declared first => destroyed last, after all endpoint callback producers.
+#ifdef OPENHD_ENABLE_ODID
+    std::shared_ptr<openhd::odid::CallbackGate> m_odid_gate =
+            std::make_shared<openhd::odid::CallbackGate>();
+    std::shared_ptr<openhd::odid::Integration> m_odid;
+#endif
   std::unique_ptr<openhd::telemetry::air::SettingsHolder> m_air_settings;
   std::unique_ptr<SerialEndpointManager> m_fc_serial;
   std::unique_ptr<SerialEndpointManager> m_openhd_uart_serial;

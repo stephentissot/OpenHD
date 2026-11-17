@@ -10,3 +10,6 @@
 [submodule "OpenHD/ohd_interface/lib/wifibroadcast"]
 	path = OpenHD/ohd_interface/lib/wifibroadcast
 	url = https://github.com/OpenHD/wifibroadcast.git
+[submodule "third_party/opendroneid-core-c"]
+	path = third_party/opendroneid-core-c
+	url = https://github.com/opendroneid/opendroneid-core-c.git

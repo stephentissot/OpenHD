@@ -36,6 +36,12 @@ AirTelemetry::AirTelemetry() : MavlinkSystem(OHD_SYS_ID_AIR) {
   m_console = openhd::log::create_or_get("air_tele");
   assert(m_console);
   m_air_settings = std::make_unique<openhd::telemetry::air::SettingsHolder>();
+#ifdef OPENHD_ENABLE_ODID
+  // Dependencies must exist before any endpoint can call on_messages_fc().
+  m_odid = std::make_shared<openhd::odid::Integration>(
+      openhd::get_telemetry_settings_directory() + "opendroneid.json",
+      m_air_settings->get_settings().fc_sys_id);
+#endif
   m_fc_serial = std::make_unique<SerialEndpointManager>();
   m_openhd_uart_serial = std::make_unique<SerialEndpointManager>();
   m_ohd_main_component = std::make_shared<OHDMainComponent>(_sys_id, true);
@@ -57,9 +63,17 @@ AirTelemetry::AirTelemetry() : MavlinkSystem(OHD_SYS_ID_AIR) {
       openhd::TCPServer::Config{TCPEndpoint::DEFAULT_PORT});  // 1445
   if (m_tcp_server) {
     m_tcp_server->registerCallback(
-        [this](std::vector<MavlinkMessage> messages) {
+        [this
+      #ifdef OPENHD_ENABLE_ODID
+         , gate = m_odid_gate
+      #endif
+        ](std::vector<MavlinkMessage> messages) {
+      #ifdef OPENHD_ENABLE_ODID
+          gate->run([&] { on_messages_ground_unit(messages); });
+      #else
           // Technically not correct, but works
           on_messages_ground_unit(messages);
+      #endif
         });
   }
   setup_uart();
@@ -67,7 +81,16 @@ AirTelemetry::AirTelemetry() : MavlinkSystem(OHD_SYS_ID_AIR) {
   m_console->debug("Created AirTelemetry");
 }
 
-AirTelemetry::~AirTelemetry() {}
+AirTelemetry::~AirTelemetry() {
+#ifdef OPENHD_ENABLE_ODID
+  // Close ingress, wait active callbacks, stop UART producer, then join worker.
+  // Do not hold a SerialEndpointManager mutex while waiting active callbacks.
+  m_odid_gate->close();
+  m_fc_serial->disable();
+  m_openhd_uart_serial->disable();
+  m_odid->stop();
+#endif
+}
 
 void AirTelemetry::send_messages_fc(std::vector<MavlinkMessage>& messages) {
   auto [generic, local_only] =
@@ -103,6 +126,9 @@ void AirTelemetry::send_messages_ground_unit(
 }
 
 void AirTelemetry::on_messages_fc(std::vector<MavlinkMessage>& messages) {
+#ifdef OPENHD_ENABLE_ODID
+  for (const auto& msg : messages) m_odid->ingest(msg.m);
+#endif
   // openhd::log::get_default()->debug("on_messages_fc {}",messages.size());
   // debugMavlinkMessage(message.m,"AirTelemetry::onMessageFC");
   //  Note: No OpenHD component ever talks to the FC, FC is completely passed
@@ -175,6 +201,13 @@ void AirTelemetry::loop_infinite(bool& terminate,
       }
     }
     const auto loopDelta = std::chrono::steady_clock::now() - loopBegin;
+#ifdef OPENHD_ENABLE_ODID
+    if (const auto status = m_odid->poll_status(std::chrono::steady_clock::now())) {
+      // This vehicle's ODID component intentionally shares FC sysid. Bypass
+      // generic/local OpenHD filtering, use ONLY the existing FC endpoint.
+      m_fc_serial->send_messages_if_enabled({MavlinkMessage{*status}});
+    }
+#endif
     if (loopDelta > loop_intervall) {
       // We can't keep up with the wanted loop interval
       m_console->debug(
@@ -195,6 +228,9 @@ std::string AirTelemetry::create_debug() {
   if (m_wb_endpoint) {
     ss << m_wb_endpoint->createInfo();
   }
+#ifdef OPENHD_ENABLE_ODID
+  ss << m_odid->debug();
+#endif
   return ss.str();
 }
 
@@ -271,6 +307,9 @@ std::vector<openhd::Setting> AirTelemetry::get_all_settings() {
     }
     m_air_settings->unsafe_get_settings().fc_sys_id = value;
     m_air_settings->persist(false);
+  #ifdef OPENHD_ENABLE_ODID
+    m_odid->set_fc_system(value);
+  #endif
     if (m_ohd_main_component) {
       m_ohd_main_component->set_fc_sys_id(static_cast<uint8_t>(value));
     }
@@ -403,6 +442,9 @@ std::vector<openhd::Setting> AirTelemetry::get_all_settings() {
   if (m_opt_gpio_control != nullptr) {
     OHDUtil::vec_append(ret, m_opt_gpio_control->get_all_settings());
   }
+#ifdef OPENHD_ENABLE_ODID
+  OHDUtil::vec_append(ret, m_odid->settings());
+#endif
   openhd::testing::append_dummy_if_empty(ret);
   return ret;
 }
@@ -422,8 +464,16 @@ void AirTelemetry::setup_uart() {
     options.flow_control = m_air_settings->get_settings().fc_uart_flow_control;
     options.enable_reading = true;
     m_fc_serial->configure(options, "fc_ser",
-                           [this](std::vector<MavlinkMessage> messages) {
+                           [this
+#ifdef OPENHD_ENABLE_ODID
+                            , gate = m_odid_gate
+#endif
+                           ](std::vector<MavlinkMessage> messages) {
+#ifdef OPENHD_ENABLE_ODID
+                             gate->run([&] { on_messages_fc(messages); });
+#else
                              this->on_messages_fc(messages);
+#endif
                            });
   } else {
     m_fc_serial->disable();
@@ -450,11 +500,21 @@ void AirTelemetry::setup_openhd_uart_telemetry() {
   options.enable_reading = true;
   m_openhd_uart_serial->configure(
       options, "openhd_uart",
-      [this](const std::vector<MavlinkMessage> messages) {
+      [this
+    #ifdef OPENHD_ENABLE_ODID
+       , gate = m_odid_gate
+    #endif
+      ](const std::vector<MavlinkMessage> messages) {
+    #ifdef OPENHD_ENABLE_ODID
+        gate->run([&] {
+    #endif
         auto filtered = m_uart_deduplicator.filter_and_mark(messages);
         if (!filtered.empty()) {
           this->on_messages_ground_unit(filtered);
         }
+    #ifdef OPENHD_ENABLE_ODID
+        });
+    #endif
       });
 }
 
@@ -474,10 +534,20 @@ void AirTelemetry::configure_openhd_uart_telemetry(
 
 void AirTelemetry::set_link_handle(std::shared_ptr<OHDLink> link) {
   m_wb_endpoint = std::make_unique<WBEndpoint>(link, "wb_tx");
-  m_wb_endpoint->registerCallback([this](std::vector<MavlinkMessage> messages) {
+  m_wb_endpoint->registerCallback([this
+#ifdef OPENHD_ENABLE_ODID
+                                  , gate = m_odid_gate
+#endif
+                                 ](std::vector<MavlinkMessage> messages) {
+#ifdef OPENHD_ENABLE_ODID
+    gate->run([&] {
+#endif
     auto filtered = m_uart_deduplicator.filter_and_mark(messages);
     if (!filtered.empty()) {
       on_messages_ground_unit(filtered);
     }
+#ifdef OPENHD_ENABLE_ODID
+    });
+#endif
   });
 }

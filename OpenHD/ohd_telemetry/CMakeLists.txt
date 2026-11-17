@@ -128,6 +128,14 @@ target_compile_options(mavlink INTERFACE -Wno-address-of-packed-member -Wno-cast
 target_include_directories(mavlink INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/lib/mavlink-headers/mavlink/v2.0)
 target_link_libraries(OHDTelemetryLib PUBLIC mavlink)
 
+option(OPENHD_ENABLE_ODID "Build opt-in experimental Air OpenDroneID" OFF)
+if(OPENHD_ENABLE_ODID)
+    add_subdirectory(src/opendroneid)
+    target_sources(OHDTelemetryLib PRIVATE src/opendroneid/Integration.cpp)
+    target_link_libraries(OHDTelemetryLib PUBLIC openhd_odid_core)
+    target_compile_definitions(OHDTelemetryLib PUBLIC OPENHD_ENABLE_ODID=1)
+endif()
+
 # All the test files for development
 add_executable(test_serial_endpoint test/test_serial_endpoint.cpp)
 target_link_libraries(test_serial_endpoint OHDTelemetryLib)
