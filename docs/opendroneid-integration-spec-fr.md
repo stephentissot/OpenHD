@@ -3,8 +3,8 @@
 ## 1. Statut et périmètre
 
 - Date : 17 novembre 2026.
-- Statut : spécification initiale, non implémentée ; diagnostic Ground réalisé,
-  validation Air et émissions radio en attente.
+- Statut : spécification initiale, non implémentée ; diagnostics Ground et Air
+  réalisés, validation des données MAVLink réelles et émissions radio en attente.
 - Base analysée : branche `2.7-evo`, commit `c75c37e6bcd014a990b81ae9b2556eb6afefd924`.
 - Cible initiale : unité Air Raspberry Pi Zero 2 W, caméra IMX708,
   adaptateur BL-M8812EU2 pour OpenHD, contrôleur STM32H723 sous ArduPilot.
@@ -282,7 +282,45 @@ avec les permissions et la sortie console constatées dans ce diagnostic.
 - Préserver les timestamps du FC et définir la stratégie horaire ; ne pas régler
   automatiquement l'horloge pendant le diagnostic.
 
-À compléter sur l'unité Air, en lecture seule :
+### Diagnostic complémentaire de l'unité Air
+
+Après changement de hotspot par l'utilisateur, une nouvelle lecture SSH sur
+`192.168.3.1` confirme le marqueur `/boot/openhd/air.txt` et le SSID `openhd_air`.
+Le matériel, les versions OS/noyau/OpenHD/BlueZ/NetworkManager sont identiques
+aux versions Ground relevées ci-dessus. Les services OpenHD, Bluetooth et
+NetworkManager sont actifs. Aucune configuration ni émission n'a été modifiée.
+
+| Élément Air | Résultat |
+| --- | --- |
+| Wi-Fi intégré | **`wlan0`, `phy0`**, SDIO, pilote `brcmfmac`, AP hotspot |
+| Wi-Fi USB vidéo | **`wlan1`, `phy1`**, USB, pilote `rtl88x2eu_ohd`, monitor |
+| Hotspot | `ohd_wifi_hotspot`, `192.168.3.1/24`, canal 1 / 2412 MHz |
+| Vidéo radio | canal 1 / 2412 MHz également au relevé |
+| Capacités Wi-Fi intégré | AP/managed/P2P/IBSS ; ni monitor ni NAN annoncés ; un AP maximum, combinaison AP sur un canal |
+| Bluetooth | `hci0`, Broadcom UART, HCI/LMP 4.2, UP RUNNING, non bloqué |
+| Publicité BLE | LE/Advertising annoncés, 0 instance active et 5 supportées annoncées par BlueZ |
+| UART visible | `/dev/serial0` vers `/dev/ttyS0` |
+| Configuration FC persistée | `fc_uart_connection_type=DEFAULT`, 115200 bauds, flow control désactivé |
+| Caméra | overlay `imx708` présent ; pas de test caméra réalisé |
+| RAM au relevé | 426 Mio total, 259 Mio disponibles, swap non utilisé |
+| Disque racine | 712 Mio libres, occupation 81 % |
+| Build | GCC/G++/CMake/Git absents des chemins usuels vérifiés |
+| Heure système | mai 2023, toujours impropre comme référence UTC actuelle |
+
+**Les noms d'interfaces sont inversés entre Air et Ground** : la protection des
+radios doit impérativement utiliser l'identité matérielle, le pilote et le PHY.
+La configuration UART persistée ne constitue pas une preuve d'ouverture du port
+ni de réception des messages ODID ; aucun deuxième lecteur série n'a été ouvert.
+Le Bluetooth est déjà actif, donc aucune réactivation d'overlay n'est requise
+pour démarrer l'étude BLE sur cette image. La réception et la cadence effective
+des annonces restent à tester.
+
+Le décalage 2.6.4 installé / 2.7-evo développé est confirmé sur l'Air également.
+Choisir la stratégie de version/image avant tout remplacement de binaire.
+Les constats antérieurs signalés « Air en attente » dans le compte rendu Ground
+doivent se lire historiquement ; le présent complément actualise l'inventaire.
+
+Inventaire de référence (données MAVLink réelles encore à compléter) :
 
 | Domaine | Preuves attendues |
 | --- | --- |
