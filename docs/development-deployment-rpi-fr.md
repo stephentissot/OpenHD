@@ -319,3 +319,33 @@ relus. La sauvegarde privée et les paquets de retour restent conservés.
 non terminée.** Aucun redémarrage complet n'a encore été testé, aucune réception
 vidéo Ground ni OSD/FC n'a été validée. Le Ground reste en 2.6.4 et n'a pas été
 modifié. Aucun développement ni émission OpenDroneID n'a été ajouté.
+
+## Préparation de la station Ground
+
+La connexion de la paire mixte a été observée par l'utilisateur : versions Ground
+2.6.4-evo et Air 2.7.1-evo visibles, mais aucune vidéo et type de radio Air `n/a`.
+Cela prouve un échange de télémétrie, pas la compatibilité vidéo/statistiques.
+
+Le Ground audité est aussi un Zero 2 W Bullseye ARMhf, libcamera 1.2.7, avec
+669 MiB libres. Ses interfaces sont inversées : USB RTL88X2EU `wlan0`, Broadcom
+hotspot `openhd_ground` sur `wlan1`. La clé SSH ED25519 correspond à l'empreinte
+Ground précédemment approuvée ; elle est isolée de celle de l'Air, à la même IP.
+
+Les outils [Ground](../tools/dev-rpi/ground-preflight.sh) reprennent une transaction
+protégée indépendante de l'Air, avec sauvegarde des anciens DEB, réglages, boot,
+unités et réseau. Le vrai fichier Qt `/root/.config/OpenHD/QOpenHD.conf` est inclus.
+QOpenHD 2.6.4 reste inchangé pour ce premier jalon ; actif mais désactivé au boot,
+ses états sont sauvegardés séparément. La compatibilité de ses statistiques avec
+le nouveau cœur ne doit pas être présumée.
+
+Le décodeur externe historique appartient à `h264_decode.service`, pas à
+QOpenHD : `gst-launch-1.0` reçoit RTP/H264 sur UDP 5600 puis alimente
+`fpv_video0.bin`. Ces exécutables/plugins sont présents sur la cible. Le nouveau
+SysUtils lance sa propre chaîne équivalente sur les anciens Pi : l'installateur
+doit donc arrêter/désactiver le service historique **après armement du rollback**.
+La restauration rétablit aussi ce service et son script. Voir l'
+[audit du décodeur](sysutils-ground-decoder-inspection.md).
+
+Les tests de migration Ground et de sauvegarde/restauration des réglages Qt et
+du décodeur réussissent localement. Les sources fonctionnelles restent intactes.
+Cette préparation seule ne constitue pas encore une installation Ground validée.
