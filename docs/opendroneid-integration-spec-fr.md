@@ -3,7 +3,8 @@
 ## 1. Statut et périmètre
 
 - Date : 17 novembre 2026.
-- Statut : spécification initiale, non implémentée ; validation matérielle en attente.
+- Statut : spécification initiale, non implémentée ; diagnostic Ground réalisé,
+  validation Air et émissions radio en attente.
 - Base analysée : branche `2.7-evo`, commit `c75c37e6bcd014a990b81ae9b2556eb6afefd924`.
 - Cible initiale : unité Air Raspberry Pi Zero 2 W, caméra IMX708,
   adaptateur BL-M8812EU2 pour OpenHD, contrôleur STM32H723 sous ArduPilot.
@@ -222,11 +223,66 @@ Accès demandé : `192.168.3.1`, compte `openhd`. Aucun secret n'est stocké ici
 - Le serveur SSH répond à cette adresse.
 - Sa clé diffère de l'entrée locale connue. L'utilisateur a confirmé l'identité
   présentée pour cette session ; le fichier global des hôtes connus n'a pas été modifié.
-- L'authentification non interactive par clé a échoué (`publickey,password`).
-- En conséquence, aucune commande de diagnostic n'a encore été exécutée sur le Pi.
-- Le diagnostic est en attente d'authentification interactive dans le terminal.
+- L'authentification non interactive par clé a échoué (`publickey,password`),
+  puis les lectures ont réussi après authentification interactive.
+- Aucune installation, reconfiguration, émission de test ni interruption de
+  service n'a été effectuée.
 
-À collecter après connexion, en lecture seule :
+### Résultats effectivement relevés
+
+| Élément | Résultat |
+| --- | --- |
+| Rôle | **Ground**, marqueur `/boot/openhd/ground.txt` présent ; SSID `openhd_ground` |
+| Matériel | Raspberry Pi Zero 2 W Rev 1.0 |
+| OS | Raspbian GNU/Linux 11 Bullseye, userland 32 bits |
+| Noyau | `6.1.29-v7+`, `armv7l` |
+| OpenHD installé | `2.6.4-202505221612-d9ed491` |
+| Service OpenHD | actif, `/usr/local/bin/openhd`, exécuté en root |
+| Radio USB vidéo | `wlan0`, `phy0`, pilote `rtl88x2eu_ohd`, chemin matériel USB |
+| Radio intégrée | `wlan1`, `phy1`, pilote `brcmfmac`, chemin matériel SDIO |
+| Hotspot | NetworkManager, `ohd_wifi_hotspot`, `wlan1`, `192.168.3.1/24` |
+| Fréquences observées | hotspot et radio monitor sur canal 1, 2412 MHz |
+| Modes intégrés annoncés | managed/AP/P2P/IBSS ; pas de monitor ni NAN annoncés |
+| Combinaison AP annoncée | un seul AP, combinaison correspondante limitée à un canal |
+| Bluetooth | `hci0`, bus UART, Broadcom, HCI/LMP 4.2, UP RUNNING |
+| Capacités BLE annoncées | LE et Advertising ; rôle peripheral disponible |
+| Annonces BlueZ | 0 instance active, 5 instances supportées annoncées par BlueZ |
+| rfkill | Wi-Fi et Bluetooth non bloqués, matériel et logiciel |
+| BlueZ | `5.55-3.1+rpt2`, service actif |
+| NetworkManager | `1.30.6-1+deb11u1`, service actif |
+| UART visible | `/dev/serial0` pointe vers `/dev/ttyS0` |
+| Boot UART | `enable_uart=1`, lignes overlays uart2/uart3 présentes ; leur effet n'est pas établi |
+| RAM au relevé | 426 Mio total, environ 152 Mio disponibles ; swap 45/99 Mio utilisé |
+| Disque racine | 677 Mio libres sur 3,7 Gio, occupation 82 % |
+| Outils de build | GCC, G++, CMake et Git non trouvés aux emplacements usuels vérifiés |
+| Outils radio | `iw` et `rfkill` présents sous `/usr/sbin`, absent du PATH SSH observé |
+| Heure système | mai 2023, incohérente avec la date de session ; ne pas utiliser cette heure comme référence Remote ID |
+
+Ces résultats concernent le **Pi Ground connecté**, pas encore le Pi Air du drone.
+Le rôle n'a pas été changé. Les données UART/Remote ID effectivement émises par le
+STM32H723 n'ont pas été observées. Les journaux du service ne sont pas exploitables
+avec les permissions et la sortie console constatées dans ce diagnostic.
+
+### Conséquences pour le développement
+
+- La présence HCI/BlueZ permet d'envisager un prototype BLE Legacy sur ce Pi,
+  sans preuve à ce stade de réception ni de cadence correcte.
+- Le nombre d'instances annoncé ne démontre ni annonces étendues, ni Long Range.
+- L'absence de monitor sur le Broadcom interdit de compter sur cette voie sans
+  modification de pile ; l'émission Beacon via AP reste une question différente.
+- Le hotspot et la radio vidéo partagent actuellement la bande et le canal :
+  mesurer la coexistence, sans changer ce réglage automatiquement.
+- Ne pas déployer directement le binaire du fork `2.7-evo` à la place du 2.6.4 :
+  relever d'abord la révision Air et définir une base logicielle/image compatible,
+  notamment les dépendances SysUtils de la branche récente.
+- Privilégier un build ARM 32 bits hors cible avec sysroot compatible, ou une image
+  de développement dédiée ; l'installation d'une toolchain complète sur cette
+  racine et un build lourd sont risqués vu le disque et la mémoire disponibles.
+- Refaire l'inventaire sur l'Air avant de figer les noms d'interface et l'UART.
+- Préserver les timestamps du FC et définir la stratégie horaire ; ne pas régler
+  automatiquement l'horloge pendant le diagnostic.
+
+À compléter sur l'unité Air, en lecture seule :
 
 | Domaine | Preuves attendues |
 | --- | --- |
