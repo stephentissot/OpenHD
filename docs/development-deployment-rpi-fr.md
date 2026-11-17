@@ -200,3 +200,48 @@ image cohérente au lieu de multiplier les remplacements manuels de bibliothèqu
 
 Résultats matériels détaillés et spécifications fonctionnelles :
 [intégration OpenDroneID](opendroneid-integration-spec-fr.md).
+
+## Transaction Air : sauvegarde validée, installation non encore validée
+
+Une tentative de migration Air seule a été lancée depuis la session SSH avec
+`systemd-run`, indépendamment de la connexion. Le Ground reste inchangé.
+Le retour de la commande de lancement n'a pas été reçu : l'arrêt du cœur a
+coupé SSH et le hotspot n'était plus annoncé lors du premier contrôle.
+**Ne pas considérer cette tentative comme une installation réussie.**
+
+Préparations effectivement validées sur la cible :
+
+- Deux anciens paquets reconstruits pour le retour en 2.6.4 et ancien SysUtils,
+   archive des réglages/boot/unités/profils réseau, sommes SHA256 vérifiées.
+- Copie privée sur le PC dans les artefacts ignorés ; SHA256 de cette archive :
+   `04aa75b5ff740781d4297d8d99ab35c3fea14cd49ae2027e6df2e2b1502eb65f`.
+   Elle contient des profils réseau et doit rester privée, hors Git.
+- `ldd` des deux nouveaux exécutables sans bibliothèque manquante sur le Pi ;
+   simulation APT : deux remplacements, aucune nouvelle dépendance.
+- Tests locaux de conservation UART/caméra/puissance radio, idempotence de la
+   migration JSON et syntaxe Bash/Perl réussis.
+
+Les outils de transaction arment un timer persistant avant tout arrêt de service :
+retour arrière après 15 minutes sans confirmation, nouvelles tentatives après
+échec. Ce filet est **préparé dans le script, mais son état effectif après la
+coupure doit être vérifié** dès le retour SSH. Ne pas couper l'alimentation
+pendant cette fenêtre. Le script de restauration est
+[air-rollback.sh](../tools/dev-rpi/air-rollback.sh).
+
+Précautions de migration : `firstboot=false` dans la configuration du nouveau
+compagnon (son firstboot peut reformater la partition vidéo), montages bind
+compatibles sans repartitionnement, ancien fichier de réserve conservé par
+renommage, démarrage automatique bloqué pendant l'installation des paquets.
+Les sources fonctionnelles OpenHD et SysUtils restent inchangées.
+
+Incident de sauvegarde identifié et corrigé : `dpkg-repack` peut retourner un
+statut global de succès malgré l'échec d'un paquet. L'ancien postinst SysUtils
+avait supprimé un conffile X20, ce qui empêchait de reconstruire son paquet.
+La reconstruction omet uniquement ce conffile déjà absent ; les deux DEB de
+retour arrière ont ensuite été vérifiés. Le précontrôle impose désormais leur
+présence explicite.
+
+Prochaine preuve requise : relire les journaux de transaction et de restauration,
+versions et états des paquets/services, socket compagnon, hotspot, IMX708 et UART.
+Ne désarmer le timer qu'après validation, pas sur la seule présence des nouveaux
+paquets. Aucun test de paire vidéo ni développement OpenDroneID n'est validé ici.
