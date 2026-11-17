@@ -1,5 +1,16 @@
 # Environnement de développement et déploiement Raspberry Pi
 
+## Réinstallation Ground après rollback
+
+Le helper [ground-prepare-retry.sh](../tools/dev-rpi/ground-prepare-retry.sh)
+vérifie les anciens paquets, les états des services et les sommes de la
+sauvegarde exportée et du bundle. Il archive les journaux, marqueurs et unités
+du premier essai sous `attempts/first`, sans remplacer la sauvegarde. Il retire
+uniquement la configuration SysUtils inerte (`firstboot=false`) et les unités
+de rollback achevées avant de refaire le précontrôle. Aucun service actif n'est
+arrêté par cette préparation. Le déploiement utilise ensuite le bundle baseline
+historique, jamais le nouveau binaire expérimental OpenDroneID.
+
 ## État de préparation — 17 novembre 2026
 
 Objectif : compiler le fork `2.7-evo` sans modification du code fonctionnel,
