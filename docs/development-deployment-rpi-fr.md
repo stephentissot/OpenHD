@@ -201,7 +201,7 @@ image cohérente au lieu de multiplier les remplacements manuels de bibliothèqu
 Résultats matériels détaillés et spécifications fonctionnelles :
 [intégration OpenDroneID](opendroneid-integration-spec-fr.md).
 
-## Transaction Air : sauvegarde validée, installation non encore validée
+## Première transaction Air : échec puis rollback validé
 
 Une tentative de migration Air seule a été lancée depuis la session SSH avec
 `systemd-run`, indépendamment de la connexion. Le Ground reste inchangé.
@@ -223,9 +223,9 @@ Préparations effectivement validées sur la cible :
 
 Les outils de transaction arment un timer persistant avant tout arrêt de service :
 retour arrière après 15 minutes sans confirmation, nouvelles tentatives après
-échec. Ce filet est **préparé dans le script, mais son état effectif après la
-coupure doit être vérifié** dès le retour SSH. Ne pas couper l'alimentation
-pendant cette fenêtre. Le script de restauration est
+échec. Son exécution réelle a ensuite été confirmée par le retour SSH et les
+versions restaurées décrites ci-dessous. Ne pas couper l'alimentation pendant
+une transaction. Le script de restauration est
 [air-rollback.sh](../tools/dev-rpi/air-rollback.sh).
 
 Précautions de migration : `firstboot=false` dans la configuration du nouveau
@@ -241,7 +241,7 @@ La reconstruction omet uniquement ce conffile déjà absent ; les deux DEB de
 retour arrière ont ensuite été vérifiés. Le précontrôle impose désormais leur
 présence explicite.
 
-Prochaine preuve requise : relire les journaux de transaction et de restauration,
+Contrôles requis avant toute confirmation : relire les journaux de transaction et de restauration,
 versions et états des paquets/services, socket compagnon, hotspot, IMX708 et UART.
 Ne désarmer le timer qu'après validation, pas sur la seule présence des nouveaux
 paquets. Aucun test de paire vidéo ni développement OpenDroneID n'est validé ici.
@@ -267,4 +267,55 @@ correction ne démontre pas à elle seule la résolution des `SIGSEGV`.
 Le journal NetworkManager montre aussi la suppression du profil hotspot pendant
 son activation (`connection-removed`). Les redémarrages et destructions d'objets
 hotspot peuvent expliquer cette disparition ; l'ordre causal complet reste à
-vérifier. Aucune seconde installation n'a été lancée au cours de ce diagnostic.
+vérifier. Aucune seconde installation n'avait encore été lancée à ce stade.
+
+## Second essai Air : démarrage 2.7 confirmé le 17 novembre 2026
+
+Après accord utilisateur, le second essai a utilisé **exactement les mêmes
+binaires non modifiés**, avec la migration corrigée des quatre emplacements de
+puissance. Le helper [air-prepare-retry.sh](../tools/dev-rpi/air-prepare-retry.sh)
+a vérifié la restauration 2.6.4 et les sommes des sauvegardes, puis archivé les
+journaux et marqueurs du premier essai sous `attempts/first` sur la cible.
+La configuration de sécurité conservée par le rollback a été acceptée seulement
+après vérification JSON de `firstboot=false`.
+
+Lancement détaché vers 11 h 41, reconnexion au hotspot vers 11 h 43 (heure PC).
+Le journal d'installation atteint `AIR_27_INSTALLED_ROLLBACK_STILL_ARMED`.
+Contrôles réellement effectués avant confirmation :
+
+- Paquets : OpenHD `2.7.0-1794903066-1e84d4b8`, SysUtils
+   `1.0.3.20261117093806` ; le cœur affiche **2.7.1-evo**.
+- Deux services actifs, `NRestarts=0`, même PID cœur observé pendant plus de
+   huit minutes ; aucun nouveau SIGSEGV ni exception de vecteur dans ce démarrage.
+   Les anciennes erreurs restent présentes dans le journal historique.
+- SysUtils annonce `READY`, socket compagnon présent ; radios détectées
+   `wlan0/BROADCOM` et `wlan1/OPENHD_RTL_88X2EU`.
+- Hotspot `openhd_air`, adresse 192.168.3.1, SSH accessibles ; USB en monitor.
+- Quatre vecteurs de puissance présents, chacun de longueur quatre ; réglages
+   hérités conservés (25 mW, index 10, MCS 2, largeur 20 MHz).
+- IMX708/encodeur effectivement ouverts par le cœur. Le journal de télémétrie
+   produit des statistiques vivantes : débit encodé 11 073 962 bit/s, débit injecté
+   13 833 095 bit/s avec FEC 20 %, 1 359 paquets/s, zéro image abandonnée et zéro
+   paquet TX abandonné dans l'échantillon. Cela prouve une activité d'encodage/
+   injection déclarée par le cœur, **pas une réception ni une image décodée**.
+- UART `/dev/ttyS0` ouvert, mais avertissement initial « FC connected ? » :
+   aucun échange MAVLink réel avec la FC n'est démontré par ces contrôles.
+- RAM disponible environ 253 MiB sur 426 MiB, charge processus environ 138 %
+   (plusieurs cœurs), température SoC environ 66,6 °C, `throttled=0x0`.
+   `dpkg --audit` sans anomalie. Ces relevés ne constituent pas un essai d'endurance.
+
+Attention à la fréquence : les réglages et statistiques du cœur indiquent
+5745 MHz, mais `iw dev` rapporte toujours canal 1 / 2412 MHz sur l'USB, comme
+avant migration. **La fréquence RF effective n'est donc pas validée** ; aucune
+fréquence n'a été changée pour masquer cette divergence.
+
+Le marqueur `deployment-confirmed` a été créé sous le même verrou `flock` que
+la restauration, après vérification de l'absence de rollback en cours, des
+versions et de la santé des services. Le timer a ensuite été désactivé ; sa
+désactivation et les deux services toujours actifs sans redémarrage ont été
+relus. La sauvegarde privée et les paquets de retour restent conservés.
+
+**Limite de ce jalon : installation et démarrage Air validés, recette de paire
+non terminée.** Aucun redémarrage complet n'a encore été testé, aucune réception
+vidéo Ground ni OSD/FC n'a été validée. Le Ground reste en 2.6.4 et n'a pas été
+modifié. Aucun développement ni émission OpenDroneID n'a été ajouté.
