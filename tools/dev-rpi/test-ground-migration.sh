@@ -101,4 +101,39 @@ for path in "${ui[@]}"; do rm -rf -- "$fixture/$path"; done
 tar -xzpf "$root/ui.tar.gz" -C "$fixture"
 for path in "${paths[@]}"; do grep -Fxq 'original UI settings' "$fixture/$path"; done
 grep -Fxq 'unrelated settings' "$fixture/root/.config/OpenHD/other.conf"
+# Execute the real supplement in a sandbox; systemctl rejects all mutations.
+decoder="$root/decoder"
+mkdir -p "$decoder/backup" "$decoder/usr/local/bin"
+printf 'original backup\n' > "$decoder/backup/original"
+printf '#!/bin/sh\nexit 0\n' > "$decoder/usr/local/bin/h264_decode.sh"
+(cd "$decoder/backup"; sha256sum original > SHA256SUMS)
+perl -pe '
+  BEGIN { $fixture = pop @ARGV; }
+  s{/home/openhd/openhd-ground-baseline}{$fixture}g;
+  s{/run/openhd-ground-deployment.lock}{$fixture/deployment.lock}g;
+  s{/usr/local/bin/h264_decode\.sh}{$fixture/usr/local/bin/h264_decode.sh}g;
+  s{ -C / }{ -C $fixture }g;
+' "$HERE/ground-supplement-decoder-backup.sh" "$decoder" > "$root/supplement.sh"
+systemctl() {
+  case "$*" in
+    'is-active h264_decode.service') printf 'active\n' ;;
+    'is-enabled h264_decode.service') printf 'enabled\n' ;;
+    '--no-pager cat h264_decode.service') printf '[Service]\nExecStart=/usr/local/bin/h264_decode.sh\n' ;;
+    *) echo "Unexpected service operation: $*" >&2; return 1 ;;
+  esac
+}
+export -f systemctl
+# Corruption must be rejected before creating supplemental backup files.
+printf 'corrupt\n' >> "$decoder/backup/original"
+if bash "$root/supplement.sh" > "$root/supplement-rejected.log" 2>&1; then
+  echo 'Corrupt backup was accepted' >&2; exit 1
+fi
+test ! -e "$decoder/backup/h264_decode.active"
+printf 'original backup\n' > "$decoder/backup/original"
+bash "$root/supplement.sh"
+test "$(cat "$decoder/backup/h264_decode.active")" = active
+test "$(cat "$decoder/backup/h264_decode.enabled")" = enabled
+tar -tzf "$decoder/backup/legacydecoder.tar.gz" | grep -Fxq usr/local/bin/h264_decode.sh
+(cd "$decoder/backup"; sha256sum --strict -c SHA256SUMS)
+unset -f systemctl
 echo '===GROUND_MIGRATION_FIXTURES_AND_SHELL_SYNTAX_OK==='

@@ -18,7 +18,13 @@ test -s backup/openhd_2.6.4-202505221612-d9ed491_armhf.deb
 test -s backup/openhd-sys-utils_0.4-12-01-2024--13-19-56_armhf.deb
 test "$(dpkg-query -W -f='${Version}' qopenhd)" = "$(cat backup/qopenhd.version)"
 # Do not silently deploy against service states different from the exported backup.
-for unit in openhd openhd_sys_utils openhd-web-ui qopenhd; do
+for unit in openhd openhd_sys_utils openhd-web-ui qopenhd h264_decode; do
+  case "$(cat "backup/$unit.active")" in
+    active|inactive) ;; *) echo "Unsupported saved active state: $unit" >&2; exit 1 ;;
+  esac
+  case "$(cat "backup/$unit.enabled")" in
+    enabled|disabled|static|indirect) ;; *) echo "Unsupported saved enable state: $unit" >&2; exit 1 ;;
+  esac
   test "$(systemctl is-active "$unit.service" || true)" = "$(cat "backup/$unit.active")"
   test "$(systemctl is-enabled "$unit.service" || true)" = "$(cat "backup/$unit.enabled")"
 done
@@ -50,6 +56,10 @@ systemctl is-active --quiet openhd-ground-rollback.timer
 trap 'status=$?; trap - ERR; systemctl start --no-block openhd-ground-rollback.service || true; exit "$status"' ERR
 touch deployment-started
 # All disruptive operations happen after autonomous recovery is armed.
+systemctl stop h264_decode.service
+systemctl disable h264_decode.service
+test "$(systemctl is-active h264_decode.service || true)" = inactive
+test "$(systemctl is-enabled h264_decode.service || true)" = disabled
 mv /opt/space.img /opt/space.img.ground-baseline
 printf '#!/bin/sh\nexit 101\n' > /usr/sbin/policy-rc.d
 chmod 755 /usr/sbin/policy-rc.d
@@ -90,6 +100,8 @@ systemctl daemon-reload
 systemctl enable openhd-sys-utils.service openhd.service
 systemctl start openhd-sys-utils.service
 systemctl start openhd.service
+test "$(systemctl is-active h264_decode.service || true)" = inactive
+test "$(systemctl is-enabled h264_decode.service || true)" = disabled
 systemctl is-active --quiet qopenhd.service
 test "$(systemctl is-enabled qopenhd.service || true)" = "$(cat backup/qopenhd.enabled)"
 touch installation-complete

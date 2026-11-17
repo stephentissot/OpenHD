@@ -48,7 +48,7 @@ if systemctl show qopenhd.service -p Requires -p BindsTo -p PartOf | \
   grep -Eq '(^|[= ])(openhd|openhd_sys_utils|openhd-sys-utils)\.service([[:space:]]|$)'; then
   echo 'Unsafe QOpenHD dependency on a service being replaced' >&2; exit 1
 fi
-for unit in openhd openhd_sys_utils openhd-web-ui qopenhd; do
+for unit in openhd openhd_sys_utils openhd-web-ui qopenhd h264_decode; do
   active=$(systemctl is-active "$unit.service" || true)
   enabled=$(systemctl is-enabled "$unit.service" || true)
   [[ "$active" = active || "$active" = inactive ]]
@@ -61,7 +61,7 @@ perl -e '
     openhd_2.7.0-1794903066-1e84d4b8_armhf.deb
     openhd-sys-utils_1.0.3.20261117093806_armhf.deb
     ground-preflight.sh ground-migrate-settings.pl ground-install.sh
-    ground-rollback.sh test-ground-migration.sh);
+    ground-rollback.sh ground-supplement-decoder-backup.sh test-ground-migration.sh);
   while (<>) { s/\r?\n\z//; /\A[0-9a-f]{64}  (\S+)\z/ or die "Bad checksum line";
     delete $wanted{$1} or die "Unexpected/duplicate artifact: $1"; }
   die "Missing checksum entries" if keys %wanted;
@@ -85,10 +85,14 @@ mkdir -m 700 backup
 exec > >(tee backup/preflight.log) 2>&1
 dpkg-query -W > backup/packages.tsv
 dpkg-query -W -f='${Version}' qopenhd > backup/qopenhd.version
-systemctl --no-pager cat openhd.service openhd_sys_utils.service openhd-web-ui.service qopenhd.service > backup/units.txt
-for unit in openhd openhd_sys_utils openhd-web-ui qopenhd; do
-  systemctl is-enabled "$unit.service" > "backup/$unit.enabled" || true
-  systemctl is-active "$unit.service" > "backup/$unit.active" || true
+systemctl --no-pager cat openhd.service openhd_sys_utils.service openhd-web-ui.service qopenhd.service h264_decode.service > backup/units.txt
+for unit in openhd openhd_sys_utils openhd-web-ui qopenhd h264_decode; do
+  active=$(systemctl is-active "$unit.service" || true)
+  enabled=$(systemctl is-enabled "$unit.service" || true)
+  [[ "$active" = active || "$active" = inactive ]]
+  [[ "$enabled" = enabled || "$enabled" = disabled || "$enabled" = static || "$enabled" = indirect ]]
+  printf '%s\n' "$enabled" > "backup/$unit.enabled"
+  printf '%s\n' "$active" > "backup/$unit.active"
 done
 lsblk -o NAME,SIZE,FSTYPE,LABEL,MOUNTPOINT > backup/partitions.txt
 ip -br address > backup/interfaces.txt
@@ -97,6 +101,9 @@ paths=(boot/openhd boot/config.txt boot/cmdline.txt etc/fstab etc/modules
   etc/systemd/system etc/NetworkManager/system-connections usr/local/share/openhd)
 test -d /usr/local/share/qopenhd
 paths+=(usr/local/share/qopenhd)
+if [[ -e /usr/local/bin/h264_decode.sh || -L /usr/local/bin/h264_decode.sh ]]; then
+  paths+=(usr/local/bin/h264_decode.sh)
+fi
 for path in root/.config/QOpenHD root/.config/QOpenHD.conf \
   home/openhd/.config/QOpenHD home/openhd/.config/QOpenHD.conf \
   root/.config/OpenHD/QOpenHD.conf home/openhd/.config/OpenHD/QOpenHD.conf; do

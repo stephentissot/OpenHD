@@ -13,8 +13,16 @@ echo '===GROUND_ROLLBACK_STARTED==='
 (cd backup; sha256sum --strict -c SHA256SUMS)
 test -s backup/openhd_2.6.4-202505221612-d9ed491_armhf.deb
 test -s backup/openhd-sys-utils_0.4-12-01-2024--13-19-56_armhf.deb
+for unit in openhd openhd_sys_utils openhd-web-ui qopenhd h264_decode; do
+  case "$(cat "backup/$unit.active")" in
+    active|inactive) ;; *) echo "Unsupported saved active state: $unit" >&2; exit 1 ;;
+  esac
+  case "$(cat "backup/$unit.enabled")" in
+    enabled|disabled|static|indirect) ;; *) echo "Unsupported saved enable state: $unit" >&2; exit 1 ;;
+  esac
+done
 # Stop even originally inactive services before overwriting files and UI configs.
-for unit in openhd-sys-utils openhd openhd_sys_utils openhd-web-ui qopenhd; do
+for unit in openhd-sys-utils openhd openhd_sys_utils openhd-web-ui qopenhd h264_decode; do
   systemctl stop "$unit.service" || true
   state=$(systemctl is-active "$unit.service" || true)
   case "$state" in inactive|failed|unknown) ;; *) echo "Still running: $unit ($state)" >&2; exit 1;; esac
@@ -38,6 +46,9 @@ for path in /root/.config/QOpenHD /root/.config/QOpenHD.conf \
   rm -rf -- "$path"
 done
 tar -xzpf backup/configuration.tar.gz -C /
+if [[ -f backup/legacydecoder.tar.gz ]]; then
+  tar -xzpf backup/legacydecoder.tar.gz -C /
+fi
 # Retain an inert safety config, even if installation failed before creating it.
 mkdir -p /usr/local/share/OpenHD/SysUtils
 cat > /usr/local/share/OpenHD/SysUtils/config.json <<'EOF'
@@ -72,7 +83,7 @@ fi
 rm -f /usr/sbin/policy-rc.d /etc/systemd/system/openhd-sys-utils.service
 systemctl daemon-reload
 # Enabled and active are independent: Ground QOpenHD is active BUT disabled.
-for unit in openhd openhd_sys_utils openhd-web-ui qopenhd; do
+for unit in openhd openhd_sys_utils openhd-web-ui qopenhd h264_decode; do
   case "$(cat "backup/$unit.enabled")" in
     enabled) systemctl enable "$unit.service" ;;
     disabled) systemctl disable "$unit.service" ;;
@@ -81,7 +92,7 @@ for unit in openhd openhd_sys_utils openhd-web-ui qopenhd; do
   esac
 done
 # Restore the local UI/core even if hotspot recovery fails afterward.
-for unit in openhd_sys_utils openhd openhd-web-ui qopenhd; do
+for unit in openhd_sys_utils openhd openhd-web-ui qopenhd h264_decode; do
   case "$(cat "backup/$unit.active")" in
     active) systemctl start "$unit.service" ;;
     inactive) systemctl stop "$unit.service" ;;
@@ -93,7 +104,7 @@ nmcli connection reload
 nmcli connection up ohd_wifi_hotspot ifname wlan1
 ip -4 address show wlan1 | grep -q '192\.168\.3\.1/'
 systemctl is-active --quiet ssh.service
-for unit in openhd openhd_sys_utils openhd-web-ui qopenhd; do
+for unit in openhd openhd_sys_utils openhd-web-ui qopenhd h264_decode; do
   test "$(systemctl is-active "$unit.service" || true)" = "$(cat "backup/$unit.active")"
   test "$(systemctl is-enabled "$unit.service" || true)" = "$(cat "backup/$unit.enabled")"
 done
