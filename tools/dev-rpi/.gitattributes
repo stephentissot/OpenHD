@@ -1,0 +1,2 @@
+*.sh text eol=lf
+policy-rc.d text eol=lf
